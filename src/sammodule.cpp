@@ -1,15 +1,17 @@
 #include <iostream>
 #include <ros/ros.h>
+
 #include <fcntl.h>
 #include <termio.h>
 #include <sys/stat.h>
 using namespace std;
 
 #include "sensor_hub/sammodule.h"
-
+#define NUM_OF_SAM_ 25
 SAMmodule::SAMmodule()
 {
     Serial = InitSerial(_SERIAL_PORT_SAM);
+    memset(pre_samPos12,'\0',30);
 }
 
 void SAMmodule::Recev_Data_hanlder()
@@ -49,6 +51,52 @@ void SAMmodule::Recev_Data_hanlder()
                 memset(samPos12Avail, '\0', sizeof(samPos12Avail));
                 //===============================
                 NumofSam=(dataIndex-3)/4;
+//                cout<<"read lower pos"<<endl;
+                for (unsigned char i=0;i<NumofSam;i++)
+                {
+                    if(Store_chr[i*4+5]==((Store_chr[i*4+2]^Store_chr[i*4+3]^Store_chr[i*4+4])&0x7F))
+                    {
+                        unsigned int dataPos=(Store_chr[i*4+4]&0x7F)+((Store_chr[i*4+3]&0x1F)<<7);
+                        unsigned char index=Store_chr[i*4+2]&0x1F;
+
+                        //                        samPos12[index]=dataPos;
+                        //                        samPos12Avail[index]=1;
+                        int delta_noise;
+                        delta_noise=(int)dataPos-(int)pre_samPos12[index];
+                        if(abs(delta_noise)<DELTA_SAM_NOISE){
+                            samPos12[index]=dataPos;
+                            samPos12Avail[index]=1;
+                        }else{
+                            ROS_ERROR("error sam feedback: %d | delta noise: %d",index,delta_noise);
+                            samPos12Avail[index]=0;
+                        }
+
+                        pre_samPos12[index]=dataPos;
+
+
+                        //                        samPos12[Store_chr[i*4+2]&0x1F]=(Store_chr[i*4+4]&0x7F)+((Store_chr[i*4+3]&0x1F)<<7);
+                        //                        samPos12Avail[Store_chr[i*4+2]&0x1F]=1;
+                    }
+                    else
+                        cout<<"error checksum 1"<<endl;
+                }
+
+                for (unsigned char i=0; i<30;i++)
+                {
+                    if(samPos12Avail[i])
+                    {
+                        cout<<(int)i<<" : "<<samPos12[i]<<endl;
+
+                    }
+                }
+
+            }
+            else if(Store_chr[1]==PC_SAM_READ_ALL_POS12_FULL_){
+                flagDataReceived_readAllPos12=1;
+                memset(samPos12Avail, '\0', sizeof(samPos12Avail));
+                //===============================
+                NumofSam=(dataIndex-3)/4;
+                cout<<"read full pos"<<endl;
                 for (unsigned char i=0;i<NumofSam;i++)
                 {
                     if(Store_chr[i*4+5]==((Store_chr[i*4+2]^Store_chr[i*4+3]^Store_chr[i*4+4])&0x7F))
@@ -59,22 +107,13 @@ void SAMmodule::Recev_Data_hanlder()
                     else
                         cout<<"error checksum 1"<<endl;
                 }
-
-            }
-            else if(Store_chr[1]==PC_SAM_READ_ALL_POS12_FULL_){
-                flagDataReceived_readAllPos12=1;
-                memset(samPos12Avail, '\0', sizeof(samPos12Avail));
-                //===============================
-                NumofSam=(dataIndex-3)/4;
-                for (unsigned char i=0;i<NumofSam;i++)
+                for (unsigned char i=0; i<30;i++)
                 {
-                    if(Store_chr[i*4+5]==((Store_chr[i*4+2]^Store_chr[i*4+3]^Store_chr[i*4+4])&0x7F))
+                    if(samPos12Avail[i])
                     {
-                        samPos12[Store_chr[i*4+2]&0x1F]=(Store_chr[i*4+4]&0x7F)+((Store_chr[i*4+3]&0x1F)<<7);
-                        samPos12Avail[Store_chr[i*4+2]&0x1F]=1;
+                        cout<<(int)i<<" : "<<samPos12[i]<<endl;
+
                     }
-                    else
-                        cout<<"error checksum 1"<<endl;
                 }
             }
             else if(dataIndex==6){
@@ -267,7 +306,7 @@ void SAMmodule::SAM_Power_enable(unsigned char state)
     Send_Serial_String(Serial,ba,4);
 }
 
-void SAMmodule::setAllPos12(unsigned int *Pos, unsigned char numOfSam)
+void SAMmodule::setAllPos12(unsigned int *Pos, unsigned char *mod,unsigned char numOfSam)
 {
     unsigned char ba[numOfSam*4+3];
     ba[0] = 0xff;
@@ -278,18 +317,59 @@ void SAMmodule::setAllPos12(unsigned int *Pos, unsigned char numOfSam)
     {
         if((*(Pos+i)>400)&&(*(Pos+i)<3701))
         {
-            ba[refIndex++]=i;//id
-            ba[refIndex++]=(*(Pos+i)>>7)&0x7F;
+            ba[refIndex++]=(i&0x1F)+(((*(mod+i))&0x0C)<<3);//id
+            ba[refIndex++]=((*(Pos+i)>>7)&0x5F)+(((*(mod+i))&0x03)<<5);
             ba[refIndex++]=*(Pos+i)&0x7F;
             ba[refIndex]=(ba[refIndex-3]^ba[refIndex-2]^ba[refIndex-1])&0x7F;
             refIndex++;
-            cout <<(unsigned int)*(Pos+i)<<":";
+            //            cout <<(unsigned int)*(Pos+i)<<":";
         }
     }
     ba[refIndex] =0xfe;
-    cout<<endl;
+    //    cout<<endl;
     Send_Serial_String(Serial,ba,numOfSam*4+3);
 }
+
+void SAMmodule::setAllPos12_upper(unsigned int *Pos, unsigned char *mod,unsigned char numOfSam)
+{
+    unsigned char ba[numOfSam*4+3];
+    ba[0] = 0xff;
+    ba[1] = 0xf0;
+
+    unsigned char refIndex=2;
+    for(unsigned char i=12; i<20;i++)
+    {
+        if((*(Pos+i)>400)&&(*(Pos+i)<3701))
+        {
+            ba[refIndex++]=(i&0x1F)+(((*(mod+i))&0x0C)<<3);//id
+            ba[refIndex++]=((*(Pos+i)>>7)&0x5F)+(((*(mod+i))&0x03)<<5);
+            ba[refIndex++]=*(Pos+i)&0x7F;
+            ba[refIndex]=(ba[refIndex-3]^ba[refIndex-2]^ba[refIndex-1])&0x7F;
+            refIndex++;
+            //            cout <<(unsigned int)*(Pos+i)<<":";
+        }
+    }
+
+    for(unsigned char i=23; i<25;i++)
+    {
+        if((*(Pos+i)>400)&&(*(Pos+i)<3701))
+        {
+            ba[refIndex++]=(i&0x1F)+(((*(mod+i))&0x0C)<<3);//id
+            ba[refIndex++]=((*(Pos+i)>>7)&0x5F)+(((*(mod+i))&0x03)<<5);
+            ba[refIndex++]=*(Pos+i)&0x7F;
+            ba[refIndex]=(ba[refIndex-3]^ba[refIndex-2]^ba[refIndex-1])&0x7F;
+            refIndex++;
+            //            cout <<(unsigned int)*(Pos+i)<<":";
+        }
+    }
+
+
+    ba[refIndex] =0xfe;
+    //    cout<<endl;
+    Send_Serial_String(Serial,ba,numOfSam*4+3);
+}
+
+
 
 void SAMmodule::setAllAverageTorque(const unsigned int *Atorq, unsigned char numOfSam)
 {
@@ -342,6 +422,27 @@ void SAMmodule::setAllPDQuick(const unsigned char *Pvalue, const unsigned char *
     Send_Serial_String(Serial,ba,numOfSam*4+3);
 }
 
+void SAMmodule::setAllPIDQuick(const unsigned char *Pvalue, const unsigned char *Dvalue, const unsigned char *Ivalue, unsigned char numOfSam)
+{
+    unsigned char ba[numOfSam*5+3];
+    ba[0] = 0xff;
+    ba[1] = 0xc2;
+
+    unsigned char refIndex=2;
+    for(unsigned char i=0; i<numOfSam;i++)
+    {
+
+        ba[refIndex++]=(i&0x1F)+(((*(Pvalue+i))&0x80)>>1)+(((*(Dvalue+i))&0x80)>>2);//id
+        ba[refIndex++]=(*(Pvalue+i))&0x7F;
+        ba[refIndex++]=(*(Dvalue+i))&0x7F;
+        ba[refIndex++]=(*(Ivalue+i))&0x7F;
+        ba[refIndex]=(ba[refIndex-4]^ba[refIndex-3]^ba[refIndex-2]^ba[refIndex-1])&0x7F;
+        refIndex++;
+    }
+    ba[refIndex] =0xfe;
+    Send_Serial_String(Serial,ba,numOfSam*5+3);
+}
+
 void SAMmodule::getAllPDQuick()
 {
     unsigned char ba[3];
@@ -349,6 +450,16 @@ void SAMmodule::getAllPDQuick()
     ba[1] = 0xc3;
     ba[2] =0xfe;
     Send_Serial_String(Serial,ba,3);
+}
+
+void SAMmodule::handMotion(unsigned char id)
+{
+    unsigned char ba[4];
+    ba[0] = 0xff;
+    ba[1] = 0xBB;
+     ba[2] = id;
+    ba[3] =0xfe;
+    Send_Serial_String(Serial,ba,4);
 }
 
 void SAMmodule::Send_Serial_String(int Serial, unsigned char *Trans_chr, int Size)
@@ -407,6 +518,6 @@ int SAMmodule::InitSerial(const char *Serial_Port)
 
     tcflush(Serial, TCIFLUSH);
     tcsetattr(Serial, TCSANOW, &Serial_Setting);
-   return Serial;
+    return Serial;
 
 }

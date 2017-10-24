@@ -2,7 +2,7 @@
 #define SAMMODULE_H
 
 
-#define _SERIAL_PORT_SAM "/dev/ttyUSB0"
+#define _SERIAL_PORT_SAM "/dev/ttyUSB1"
 #define _SERIAL_BUFF_SIZE    100
 //#define _BAUDRATE   B1200
 //#define _BAUDRATE   B2400
@@ -25,8 +25,7 @@
 class SAMmodule
 {
 private:
-    void Send_Serial_String(int Serial, unsigned char *Trans_chr, int Size);
-    int Serial;
+
     int InitSerial(const char *Serial_Port);
 
     unsigned char Trans_chr[_SERIAL_BUFF_SIZE];
@@ -35,17 +34,23 @@ private:
 
     unsigned char flagDataReceived:1;
     unsigned char flagEnableCapute:1;
-    unsigned char flagDataReceived_readAllPos12:1;
-    unsigned char flagDataAvailable_readAllPos12:1;
 
-    unsigned char flagDataReceived_readAllPos8:1;
 
     unsigned char dataIndex;
     unsigned char NumofSam;
 public:
+    unsigned char flagDataReceived_readAllPos12:1;
+    unsigned char flagDataAvailable_readAllPos12:1;
 
-    unsigned int samPos12[24];
-    unsigned char samPos12Avail[24];
+    unsigned char flagDataReceived_readAllPos8:1;
+     unsigned char flagReadyToSend:1;
+#define DELTA_SAM_NOISE 100
+    unsigned int samPos12[30];
+    int pre_samPos12[30];
+    unsigned char samPos12Avail[30];
+
+    void Send_Serial_String(int Serial, unsigned char *Trans_chr, int Size);
+    int Serial;
 
     SAMmodule();
 
@@ -71,13 +76,16 @@ public:
     void getAllPos8Torq8();
     void setAllPassive();
     void SAM_Power_enable(unsigned char state);
-    void setAllPos12(unsigned int *Pos,unsigned char numOfSam);
+    void setAllPos12(unsigned int *Pos, unsigned char *mod, unsigned char numOfSam);
+
+    void setAllPos12_upper(unsigned int *Pos, unsigned char *mod,unsigned char numOfSam);
     void setAllAverageTorque(const unsigned int *Atorq,unsigned char numOfSam);
     void getAllAverageTorque();
 
     void setAllPDQuick(const unsigned char *Pvalue,const unsigned char *Dvalue,unsigned char numOfSam);
+    void setAllPIDQuick(const unsigned char *Pvalue,const unsigned char *Dvalue,const unsigned char *Ivalue,unsigned char numOfSam);
     void getAllPDQuick();
-
+    void handMotion(unsigned char id);
 };
 
 #endif // SAMMODULE_H

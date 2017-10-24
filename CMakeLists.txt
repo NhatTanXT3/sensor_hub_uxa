@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
    message_generation
+   tf
 )
 
 ## System dependencies are found with CMake's conventions
@@ -52,6 +53,9 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    dataSensorMsg.msg
    cmdSensorMsg.msg
+   tfSensorMsg.msg
+   SAMtfCalMsg.msg
+   SAMJointPos12UpperMsg.msg
  )
 
 ## Generate services in the 'srv' folder

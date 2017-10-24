@@ -55,9 +55,6 @@ void SensorModule::Recev_Data_hanlder()
                     {
                         sensorData[Store_chr[i*4+2]&0x1F]=(Store_chr[i*4+4]&0x7F)|((Store_chr[i*4+3]&0x7F)<<7)|((Store_chr[i*4+2]&0x60)<<9);
                         sensorDataAvail[Store_chr[i*4+2]&0x1F]=1;
-
-                        //                        sensorData[myData.at(i*4+2)&0x1F]=(myData.at(i*4+4)&0x7F)|((myData.at(i*4+3)&0x7F)<<7)|((myData.at(i*4+2)&0x60)<<9);
-                        //                        sensorDataAvail[myData.at(i*4+2)&0x1F]=1;
                     }
                     else
                         cout<<"error checksum 1"<<endl;
@@ -67,9 +64,7 @@ void SensorModule::Recev_Data_hanlder()
                 {
                     if(sensorDataAvail[i])
                     {
-
                         cout<<(int)i<<" : "<<sensorData[i]<<endl;
-
                     }
                 }
 

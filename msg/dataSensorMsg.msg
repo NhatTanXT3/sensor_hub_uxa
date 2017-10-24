@@ -6,7 +6,15 @@ uint16 zmp_P4
 uint16 zmp_P5
 uint16 zmp_P6
 uint16 zmp_P7
-float32 body_roll
-float32 body_pitch
-float32 body_yaw
-
+float64 body_roll
+float64 body_pitch
+float64 body_yaw
+float64 body_roll_rate
+float64 body_pitch_rate
+float64 body_yaw_rate
+float64 left_x
+float64 left_y
+float64 left_amplitude
+float64 right_x
+float64 right_y
+float64 right_amplitude
